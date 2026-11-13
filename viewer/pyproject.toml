@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kitscenes-viewer"
+dynamic = ["version"]
+description = "3D viewer for KITScenes: scenes, lidar, cameras and maps in the browser."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "kitscenes_viewer/static/vendor/LICENSE"]
+authors = [{ name = "Richard Schwarzkopf", email = "richard.schwarzkopf@kit.edu" }]
+requires-python = ">=3.9"
+# The page and server.py need nothing beyond the standard library; the scene
+# server reads the dataset and the maps through kitscenes.
+dependencies = [
+    "kitscenes[map]",
+]
+
+[project.optional-dependencies]
+# Whole-scene clouds (static map of a drive, city tiles): a GPU makes them
+# take seconds instead of a minute or two per scene.
+clouds = [
+    "kitscenes[torch]",
+]
+dev = [
+    "pytest",
+]
+
+[project.scripts]
+kitscenes-viewer = "kitscenes_viewer.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/KIT-MRT/kitscenes"
+Repository = "https://github.com/KIT-MRT/kitscenes"
+
+[tool.setuptools.dynamic]
+version = { attr = "kitscenes_viewer.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["kitscenes_viewer", "kitscenes_viewer.*"]
+
+[tool.setuptools.package-data]
+kitscenes_viewer = ["static/**/*", "style_images/*"]

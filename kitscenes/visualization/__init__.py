@@ -1,113 +1,48 @@
-"""Visualization helpers for the kitscenes dataset.
+"""Visualization of the dataset: map labels from above, everything reprojected into the cameras, and videos.
 
-Public API::
+Three tools (for everything else in 3D, the 3D viewer: ``kitscenes view``):
 
-    from kitscenes.visualization import (
-        # scene-level (ego / cameras)
-        render_scene_bev,
-        render_scene_animation,
-        render_surround_view,
-        plot_map_interactive,
-        # HD map (ML converter — tested pipeline)
-        render_map_top_down,
-        render_map_top_down_for_frame,
-        MapProjector,
-        create_map_projector,
-        project_scene_maps,
-        generate_map_projection_video,
-        # frame-level (sensors)
-        render_lidar_bev,
-        render_lidar_on_camera,
-        render_radar_bev,
-        render_radar_on_camera,
-        render_frame_overview,
-    )
+- :func:`plot_top_down` / :func:`render_top_down`: the map labels around a pose from above.
+- :func:`render_frame`: a frame's camera images with the map labels, the lidar points and
+  (optionally) the radar detections drawn in; :func:`render_scene` and :func:`write_video` for whole
+  scenes (``examples/render_reprojection.py``).
+- :func:`render_video` (``kitscenes video``): MP4s of whole selections, the ring cameras with the
+  labels and a BEV panel, drawn and encoded on the GPU (or the CPU).
+
+Needs ``kitscenes[viz]`` (matplotlib, OpenCV; :func:`render_video` also torch and the ffmpeg binary:
+``kitscenes[video]``) and, for map labels, a lanelet2 build with ``lanelet2.ml_converter``. The traffic
+element icons ship with kitscenes (``$KITSCENES_TE_ICON_PATH`` overrides them).
 """
 
-from kitscenes.visualization.scene_viz import (
-    render_scene_animation,
-    render_scene_bev,
-    render_surround_view,
+from kitscenes.visualization.reprojection import (
+    GRID_CAMERAS,
+    MapLayer,
+    RenderOptions,
+    camera_grid,
+    render_frame,
+    render_scene,
 )
-from kitscenes.visualization.frame_viz import (
-    render_frame_overview,
-    render_lidar_bev,
-    render_lidar_on_camera,
-    render_radar_bev,
-    render_radar_on_camera,
-)
+from kitscenes.visualization.topdown import plot_top_down, render_top_down
+from kitscenes.visualization.video import write_video
 
 __all__ = [
-    # scene-level
-    "render_scene_bev",
-    "render_scene_animation",
-    "render_surround_view",
-    # HD map projection pipeline
-    "MapProjector",
-    "create_map_projector",
-    "project_scene_maps",
-    "render_map_top_down",
-    "render_map_top_down_for_frame",
-    "generate_map_labels_for_scene",
-    "get_map_data_for_ego_pose",
-    "get_map_data_for_frame",
-    "generate_map_projection_video",
-    "create_composite_frame",
-    "get_projection_frame_indices",
-    # frame-level sensors
-    "render_lidar_bev",
-    "render_lidar_on_camera",
-    "render_radar_bev",
-    "render_radar_on_camera",
-    "render_frame_overview",
-    # ML converter utilities
-    "get_map_data",
-    "plot_map_data",
-    "TYPE_GROUPINGS",
+    "plot_top_down",
+    "render_top_down",
+    "MapLayer",
+    "RenderOptions",
+    "render_frame",
+    "render_scene",
+    "camera_grid",
+    "write_video",
+    "render_video",
+    "GRID_CAMERAS",
 ]
 
-# plot_map_interactive is imported lazily (requires plotly)
-try:
-    from kitscenes.visualization.scene_viz import plot_map_interactive
 
-    __all__.append("plot_map_interactive")
-except ImportError:
-    pass
+def __getattr__(name: str):
+    """``render_video`` on first use, so that importing the package does not import torch."""
+    if name == "render_video":
+        from kitscenes.visualization.gpu_video import render_video
 
-# HD map / projection modules (optional — cv2, lanelet2 ml_converter, …)
-try:
-    from kitscenes.visualization.map_projection import MapProjector
-    from kitscenes.visualization.map_viz import (
-        create_map_projector,
-        generate_map_labels_for_scene,
-        get_map_data_for_ego_pose,
-        get_map_data_for_frame,
-        project_scene_maps,
-        render_map_top_down,
-        render_map_top_down_for_frame,
-    )
-    from kitscenes.visualization.ml_converter_vis_utils import (
-        TYPE_GROUPINGS,
-        get_map_data,
-        plot_map_data,
-    )
-    from kitscenes.visualization.video_generation import (
-        create_composite_frame,
-        generate_map_projection_video,
-        get_frame_indices as get_projection_frame_indices,
-    )
-except ImportError:
-    MapProjector = None  # type: ignore[misc, assignment]
-    create_map_projector = None  # type: ignore[misc, assignment]
-    project_scene_maps = None  # type: ignore[misc, assignment]
-    render_map_top_down = None  # type: ignore[misc, assignment]
-    render_map_top_down_for_frame = None  # type: ignore[misc, assignment]
-    generate_map_labels_for_scene = None  # type: ignore[misc, assignment]
-    get_map_data_for_ego_pose = None  # type: ignore[misc, assignment]
-    get_map_data_for_frame = None  # type: ignore[misc, assignment]
-    generate_map_projection_video = None  # type: ignore[misc, assignment]
-    create_composite_frame = None  # type: ignore[misc, assignment]
-    get_projection_frame_indices = None  # type: ignore[misc, assignment]
-    get_map_data = None  # type: ignore[misc, assignment]
-    plot_map_data = None  # type: ignore[misc, assignment]
-    TYPE_GROUPINGS = {}  # type: ignore[misc, assignment]
+        return render_video
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

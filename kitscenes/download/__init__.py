@@ -1,5 +1,4 @@
-"""KITScenes dataset downloader."""
+"""Downloading the release: manifest, file selection, fetching and extraction (:mod:`kitscenes.download.archives`).
 
-from kitscenes.download.downloader import KITScenesDownloader
-
-__all__ = ["KITScenesDownloader"]
+Internal: the supported interface is the command line (``kitscenes download``, ``kitscenes extract``).
+"""

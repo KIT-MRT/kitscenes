@@ -4,22 +4,30 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kitscenes"
-version = "0.1.0"
+dynamic = ["version"]  # kitscenes/_version.py
 description = "A Python API for KITScenes, a dataset for autonomous driving research."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Richard Schwarzkopf", email = "richard.schwarzkopf@kit.edu" }]
-requires-python = ">=3.8,<3.13"
+requires-python = ">=3.9"
+# A plain install reads the dataset (zips or extracted folders) and downloads it.
+# Everything that plots, needs a GPU or the HD-map library (lanelet2) is an extra below.
 dependencies = [
-    "numpy<2.0",
+    "numpy>=1.22",
     "tqdm",
-    "matplotlib",
     "pyarrow",
     "scipy",
     "pyproj",
+    "pillow",
     "huggingface_hub",
+    # pyosmium reads the release's OpenStreetMap SD maps (.osm.pbf and .osm, scene.sd_map):
+    # binary wheels for CPython 3.9-3.13 on Linux x86_64/aarch64, macOS and Windows, ~5 MB (+ requests).
+    "osmium>=4",
 ]
+
+[project.scripts]
+kitscenes = "kitscenes.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/KIT-MRT/kitscenes"
@@ -28,32 +36,80 @@ Documentation = "https://github.com/KIT-MRT/kitscenes#readme"
 "Dataset" = "https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal"
 
 [project.optional-dependencies]
+# The map API (kitscenes.map, Scene.map) and map labels (kitscenes.map.MLConverter).
+# Map labels need lanelet2.ml_converter, which only the KITScenes build of lanelet2 has
+# (https://github.com/KITScenes/Lanelet2, release 1.2.3-kitscenes4). It is not on PyPI, so
+# it is pinned by wheel URL (Linux x86_64, Python 3.9-3.13; pip and uv both resolve it).
+# Elsewhere the PyPI lanelet2: the map API works, map labels do not
+# (kitscenes.map.has_ml_converter()).
+# The pinned build is kitscenes.map.LANELET2_BUILD; the paper label recipe needs
+# kitscenes.map.LANELET2_PAPER_BUILD (1.2.3+kitscenes3) instead. Keep the base version in sync with
+# kitscenes.map.LANELET2_MIN_VERSION; the +kitscenesN build must be at least
+# kitscenes.map._lanelet2.REUSABLE_MAP_DATA_BUILD.
 map = [
-    "lanelet2 @ file:res/ml_converter_wheels/lanelet2-1.2.2-cp38-cp38-manylinux_2_27_x86_64.whl ; python_version == '3.8'",
-    "lanelet2 @ file:res/ml_converter_wheels/lanelet2-1.2.2-cp39-cp39-manylinux_2_26_x86_64.manylinux_2_27_x86_64.whl ; python_version == '3.9'",
-    "lanelet2 @ file:res/ml_converter_wheels/lanelet2-1.2.2-cp310-cp310-manylinux_2_31_x86_64.whl ; python_version == '3.10'",
-    "lanelet2 @ file:res/ml_converter_wheels/lanelet2-1.2.2-cp311-cp311-manylinux_2_31_x86_64.whl ; python_version == '3.11'",
-    "lanelet2 @ file:res/ml_converter_wheels/lanelet2-1.2.2-cp312-cp312-manylinux_2_31_x86_64.whl ; python_version == '3.12'",
+    "lanelet2 @ https://github.com/KITScenes/Lanelet2/releases/download/1.2.3-kitscenes4/lanelet2-1.2.3%2Bkitscenes4-cp39-cp39-manylinux_2_26_x86_64.manylinux_2_27_x86_64.whl ; python_version == '3.9' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lanelet2 @ https://github.com/KITScenes/Lanelet2/releases/download/1.2.3-kitscenes4/lanelet2-1.2.3%2Bkitscenes4-cp310-cp310-manylinux_2_31_x86_64.whl ; python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lanelet2 @ https://github.com/KITScenes/Lanelet2/releases/download/1.2.3-kitscenes4/lanelet2-1.2.3%2Bkitscenes4-cp311-cp311-manylinux_2_31_x86_64.whl ; python_version == '3.11' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lanelet2 @ https://github.com/KITScenes/Lanelet2/releases/download/1.2.3-kitscenes4/lanelet2-1.2.3%2Bkitscenes4-cp312-cp312-manylinux_2_31_x86_64.whl ; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lanelet2 @ https://github.com/KITScenes/Lanelet2/releases/download/1.2.3-kitscenes4/lanelet2-1.2.3%2Bkitscenes4-cp313-cp313-manylinux_2_31_x86_64.whl ; python_version == '3.13' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lanelet2>=1.2.3 ; python_version >= '3.14' or sys_platform != 'linux' or platform_machine != 'x86_64'",
 ]
+# kitscenes.visualization (top-down view, reprojection into the cameras, videos) and
+# the notebooks.
 viz = [
-    "plotly",
-    "opencv-python-headless<4.10",
-    "pillow",
-    "cairosvg",
-    "piexif",
+    "matplotlib",
+    "opencv-python-headless>=4.10",  # first releases built for numpy 2
 ]
-pipeline = [
-    "pypcd4",
+# kitscenes video / kitscenes.visualization.render_video: the camera grid with the map labels and a
+# BEV panel as MP4, drawn with torch on the GPU (or the CPU). Also needs the ffmpeg binary (with NVENC
+# for the GPU encoder) and, for the labels, kitscenes[map]. Install torch for your CUDA from pytorch.org first.
+video = [
+    "matplotlib",
+    "opencv-python-headless>=4.10",
+    "torch>=1.10",  # kitscenes.visualization.gpu_video.VIDEO_TORCH_MIN_VERSION
 ]
-mount = [
-    "ratarmount",
+# Tensors from the training samples, kitscenes.motion_torch, kitscenes.mapping (GPU
+# voxel maps), Scene.accumulate(device=...) and kitscenes.decode. Install torch for your
+# CUDA from pytorch.org first if the default wheel does not fit. torchvision is optional
+# (GPU JPEG decoding). NVIDIA DALI (kitscenes.dali) comes from NVIDIA's package index,
+# so it cannot be an extra.
+torch = [
+    "torch>=1.13",  # kitscenes._optional.TORCH_MIN_VERSION: Tensor.scatter_reduce_ (GPU voxel maps)
 ]
+# Aerial crops (kitscenes.aerial): OpenCV cuts crops on the fly ~20x faster than the scipy
+# fallback. Reading the release tiles and prepared crops needs nothing extra.
+aerial = [
+    "opencv-python-headless>=4.10",
+]
+# The 3D viewer (viewer/, its own distribution). In a clone: pip install -e . -e viewer
+viewer = [
+    "kitscenes-viewer",
+]
+# The SD road graph as a networkx graph (kitscenes.sdmap.SDMap.to_networkx()).
+sdmap = [
+    "networkx",
+]
+# Running the tests. nbclient and ipykernel are for the opt-in notebook tests (pytest -m notebooks).
 dev = [
     "pytest",
+    "nbclient",
+    "ipykernel",
 ]
+# Every feature that installs from PyPI without a choice to make. Not torch (pick the
+# build for your CUDA), not the viewer (separate distribution), not the test tools.
 all = [
-    "kitscenes[map,viz,pipeline,mount,dev]",
+    "kitscenes[map,viz,aerial,sdmap]",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+markers = [
+    "real_data: reads a dataset copy; runs only with KITSCENES_ROOT=<root>",
+    "notebooks: executes the notebooks; runs only with KITSCENES_NOTEBOOK_ROOT=<root>",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "kitscenes._version.__version__" }
 
 [tool.setuptools.packages.find]
 include = [
@@ -62,4 +118,4 @@ include = [
 ]
 
 [tool.setuptools.package-data]
-kitscenes = ["split/generated_splits/default_geo_split_v1_0/*.txt"]
+kitscenes = ["_release_tables/*/scenes.csv", "_release_tables/*/withheld_columns.json", "py.typed", "visualization/car.png", "visualization/icons/*.png"]

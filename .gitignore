@@ -1,40 +1,40 @@
-# Bytecode
+*~
+*.pyc
+CMakeLists.txt.user
+**.egg-info
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
+*.py[codz]
 *$py.class
 
-# Virtual environments
-.venv/
-venv/
-env/
+# C extensions
+*.so
 
-# Packaging / install artifacts
-*.egg-info/
-.eggs/
-dist/
+# Distribution / packaging
+.Python
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
 *.egg
+MANIFEST
 
-# Test / type / lint caches
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
+venv
+tmp
 
-# Jupyter
-.ipynb_checkpoints/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*~
-
-# Local config and caches
-.env
-.cache/
-
-# Generated outputs (visualization, notebooks)
-output/
+venv
+.venv
 outputs/
+output/

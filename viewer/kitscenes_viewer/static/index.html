@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lanelet2 3D Viewer</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <!--
+    Layout: top bar, then the viewport next to the side panel, then the
+    status bar. Everything that floats over the map (edit tools, camera bar,
+    timeline, compass) lives inside #viewport and opts into pointer events
+    on its own, so the map stays grabbable around it.
+  -->
+  <header id="topbar">
+    <div class="tbLeft">
+      <button type="button" id="connBtn" class="brand" data-tip="Connection and where the map comes from">
+        <span id="status"></span><span id="brandName" class="brandName">Lanelet2 3D</span><span id="conn">connecting...</span>
+      </button>
+      <nav id="crumbs" aria-label="Scene" hidden>
+        <span class="crumbSep" data-crumb="city">›</span>
+        <button type="button" id="cityDeselect" class="crumb" data-crumb="city" disabled
+                data-tip="Back to the city: close the scene"><span data-icon="city"></span><span id="crumbCity">city</span></button>
+        <span class="crumbSep" data-crumb="scene">›</span>
+        <button type="button" id="crumbScene" class="crumb current" data-crumb="scene"
+                data-tip="The open scene: show its tools"><span data-icon="car"></span><span id="crumbSceneName">scene</span></button>
+      </nav>
+    </div>
+    <div class="tbCenter">
+      <div class="seg josmOnly" role="group" aria-label="Mode">
+        <button type="button" id="viewModeBtn" class="on" data-tip="Look around: orbit, pan, walk" data-key="E">View</button><button type="button" id="editBtn" data-tip="Select and move nodes and ways" data-key="E">Edit</button>
+      </div>
+    </div>
+    <div class="tbRight">
+      <div class="menuWrap">
+        <button type="button" id="viewMenuBtn" class="tbBtn" aria-haspopup="menu" data-menu="viewMenu" data-tip="Camera views and JOSM sync"><span data-icon="eye"></span><span class="tbLabel">Camera</span><span data-icon="chevron" class="chev"></span></button>
+        <div id="viewMenu" class="menu" role="menu" hidden>
+          <button type="button" id="frameBtn" role="menuitem"><span data-icon="frame"></span>Frame the whole map<kbd>F</kbd></button>
+          <button type="button" id="bevBtn" role="menuitem"><span data-icon="top"></span>Top view, north up<kbd>B</kbd></button>
+          <button type="button" id="northBtn" role="menuitem"><span data-icon="compass"></span>Face north</button>
+          <div class="menuSep"></div>
+          <button type="button" id="fpsBtn" role="menuitem" class="check"><span data-icon="mouse"></span>FPS mouse look<span class="menuHint">click the view, Esc releases</span></button>
+          <div class="menuSep josmOnly"></div>
+          <button type="button" id="recenterJosmBtn" class="josmOnly" role="menuitem"><span data-icon="target"></span>Centre JOSM on this view<span class="menuHint">also follows after 30 m</span></button>
+        </div>
+      </div>
+      <div class="menuWrap">
+        <button type="button" id="imageryBtn" class="tbBtn" aria-haspopup="menu" data-tip="Open the selection, or the middle of the view, in street-level imagery"><span data-icon="photo"></span><span class="tbLabel">Street view</span><span data-icon="chevron" class="chev"></span></button>
+        <div id="imageryMenu" class="menu" role="menu" hidden></div>
+      </div>
+      <span class="tbSep"></span>
+      <button type="button" id="paletteBtn" class="tbBtn search" data-tip="Find any command by name" data-key="Ctrl K"><span data-icon="search"></span><span class="tbLabel">Search</span><kbd>Ctrl K</kbd></button>
+      <button type="button" id="helpBtn" class="iconBtn" data-tip="Keyboard and mouse" data-key="?"><span data-icon="help"></span></button>
+      <button type="button" id="settingsBtn" class="iconBtn" data-tip="Settings"><span data-icon="settings"></span></button>
+      <button type="button" id="panelBtn" class="iconBtn" data-tip="Show or hide the side panel" data-key="\"><span data-icon="panel"></span></button>
+    </div>
+  </header>
+
+  <main id="viewport">
+    <div id="app"></div>
+    <img id="sceneImage" hidden alt="">
+
+    <!-- Edit tools: only in Edit mode. -->
+    <div id="editBar" class="rail" role="toolbar" aria-label="Edit tools" hidden>
+      <button type="button" data-edit="translate" data-tip="Move with the gizmo" data-key="G"><span data-icon="move"></span></button>
+      <button type="button" data-edit="rotate" data-tip="Rotate about the vertical through the centre" data-key="R"><span data-icon="rotate"></span></button>
+      <button type="button" data-edit="height" data-tip="Height only: straight up and down, lat/lon stay" data-key="H"><span data-icon="height"></span></button>
+      <span class="sep"></span>
+      <button type="button" data-edit="interpolate" data-tip="Interpolate heights along the selected way, between its ends or between 2+ selected nodes" data-key="I"><span data-icon="interp"></span></button>
+      <button type="button" data-edit="snap" data-tip="Snap: heights stick to the nearest node or lanelet surface, a single node onto another. Hold Ctrl while dragging to invert." data-key="M"><span data-icon="magnet"></span></button>
+      <button type="button" data-edit="keys" data-tip="What WASD, Space / C and Alt+arrows move: the camera or the selection (one key hold = one undo step)" data-key="T"><span data-icon="keys"></span><span class="lbl">cam</span></button>
+      <span class="sep"></span>
+      <button type="button" data-edit="delete" data-tip="Delete the selection through JOSM's Delete action" data-key="Del"><span data-icon="trash"></span></button>
+      <button type="button" data-edit="undo" data-tip="Undo in JOSM" data-key="Ctrl Z"><span data-icon="undo"></span></button>
+      <button type="button" data-edit="redo" data-tip="Redo in JOSM" data-key="Ctrl Y"><span data-icon="redo"></span></button>
+    </div>
+
+    <!-- What is selected and its height: only in Edit mode. -->
+    <div id="selCard" hidden>
+      <span id="selWhat">nothing selected</span>
+      <label class="zlab" data-tip="Type 112.35 to set, +0.2 / -0.2 to shift, =-1.5 for a negative height; Enter applies" data-key="Z">Z <input id="zField" type="text" inputmode="decimal" size="8" disabled autocomplete="off" spellcheck="false"> m</label>
+    </div>
+
+    <!-- Ring cameras of the recorded car: only with a scene. -->
+    <div id="camBar" hidden>
+      <button type="button" id="sceneLock" class="camLock" data-tip="Look through the selected ring camera: exact pose and intrinsics, so the render matches the recorded image pixel for pixel" data-key="Shift L"><span data-icon="lock"></span><span class="lbl">Camera view</span></button>
+      <div id="camButtons" class="camGrid" role="group" aria-label="Ring cameras"></div>
+      <span class="sep camLocked"></span>
+      <button type="button" id="sceneOverlay" class="on camLocked" data-tip="Blend the recorded image over the render" data-key="O"><span data-icon="image"></span></button>
+      <label class="camLocked blend" data-tip="How strongly the recorded image is blended in"><input type="range" id="sceneOpacity" min="0" max="100" step="5" value="45"></label>
+      <span class="camHint camLocked">Esc releases</span>
+    </div>
+
+    <!-- Compass and view shortcuts. -->
+    <div id="navGizmo">
+      <button type="button" id="compassBtn" data-tip="Heading. Click: face north"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18" class="ring"/><g id="compassRose"><text x="20" y="9.6">N</text><path d="M20 11.5 24 20h-8Z" class="north"/><path d="M20 28.5 24 20h-8Z" class="south"/><circle cx="20" cy="20" r="1.6" class="hub"/></g></svg></button>
+      <button type="button" id="orthoBtn" class="gzBtn" data-tip="Flat map view: straight down, no perspective. Left-drag pans, right-drag turns" data-key="V">2D</button>
+      <button type="button" id="frameAllBtn" class="gzBtn" data-tip="Frame the whole map" data-key="F"><span data-icon="frame"></span></button>
+      <button type="button" id="topViewBtn" class="gzBtn" data-tip="Top view, north up" data-key="B"><span data-icon="top"></span></button>
+    </div>
+
+    <!-- Playback: only with a scene. -->
+    <div id="timeline" hidden>
+      <button type="button" id="scenePrev" data-tip="Previous frame" data-key=","><span data-icon="prev"></span></button>
+      <button type="button" id="scenePlay" class="play" data-tip="Play / pause the scene"><span data-icon="play"></span></button>
+      <button type="button" id="sceneNext" data-tip="Next frame" data-key="."><span data-icon="next"></span></button>
+      <input type="range" id="sceneFrame" min="0" max="0" value="0" step="1" aria-label="Frame">
+      <span id="sceneFrameLabel">0 / 0</span>
+      <span class="sep"></span>
+      <button type="button" id="sceneCar" data-tip="Put the camera behind the car at this frame" data-key="K"><span data-icon="target"></span><span class="lbl">Car</span></button>
+      <button type="button" id="sceneFollow" data-tip="Follow the car while the frames change: the camera keeps its place relative to the car" data-key="Shift K"><span data-icon="follow"></span><span class="lbl">Follow</span></button>
+    </div>
+
+    <div id="toast"></div>
+    <div id="tileAttribution" hidden></div>
+  </main>
+
+  <aside id="sidePanel">
+    <div id="panelResize" title="Drag to resize the panel; double-click for the default width"></div>
+    <div class="panelBody">
+      <!-- Layers ---------------------------------------------------------->
+      <section class="pane" data-pane="layers">
+        <h2 class="paneTitle">Layers</h2>
+        <div class="sect" data-sect="map">
+          <button type="button" class="sectHead" data-collapse><span data-icon="chevron" class="chev"></span>Map</button>
+          <div class="sectBody">
+            <div class="slider" title="Styled: markings at their real width, with dashes and double lines. Simple: one-pixel lines, the cheapest to draw">Lines
+              <div class="seg mini" role="group" aria-label="Line style"><button type="button" id="lineStyledBtn" class="on">Styled</button><button type="button" id="lineSimpleBtn">Simple</button></div></div>
+            <button type="button" id="raisedBtn" class="layer on sub" title="Curbs, guard rails, barriers, walls and fences as upright faces; off: flat line styles like the rest"><span class="lbl">Curbs, rails and walls in 3D</span><span class="sw"></span></button>
+            <button type="button" id="lineLegendBtn" class="subToggle"><span data-icon="chevron" class="chev"></span>Line types</button>
+            <div id="lineLegend" class="lineLegend" hidden></div>
+            <button type="button" id="lanesBtn" class="layer"><span class="lbl">Lanelet surfaces and arrows</span><kbd>L</kbd><span class="sw"></span></button>
+            <div class="hint">Yellow double arrows: two-way. Violet: a participant override.</div>
+            <button type="button" id="iconsBtn" class="layer"><span class="lbl">Signs, lights and markings</span><kbd>N</kbd><span class="sw"></span></button>
+            <label class="slider sub" title="How solid the icons are: turn it down to see the point cloud through them">Opacity <input type="range" id="iconAlpha" min="10" max="100" step="5" value="100"></label>
+          </div>
+        </div>
+        <div class="sect" data-sect="basemap">
+          <button type="button" class="sectHead" data-collapse><span data-icon="chevron" class="chev"></span>Base map</button>
+          <div class="sectBody">
+            <button type="button" id="tilesBtn" class="layer" title="Web map tiles under the map. Sends the viewed area to the tile server."><span class="lbl">Map tiles</span><span class="sw"></span></button>
+            <div class="layerInfo"><span id="tileSourceName">OpenStreetMap</span> · <span id="tileStatus">off</span></div>
+            <button type="button" id="tilesMenuBtn" class="subToggle"><span data-icon="chevron" class="chev"></span>Tile source</button>
+            <div id="tilePanel" class="form" hidden>
+              <label for="tilePreset">Source</label>
+              <select id="tilePreset">
+                <option value="osm">OpenStreetMap</option>
+                <option value="hessen_dop20">Hessen DOP20 (aerial)</option>
+                <option value="bw_dop20">Baden-Württemberg DOP20 (aerial)</option>
+                <option value="xyz">Custom XYZ</option>
+                <option value="tms">Custom TMS</option>
+                <option value="wms">Custom WMS</option>
+              </select>
+              <div id="tilePresetNote" class="hint full" hidden></div>
+              <label for="tileUrl">URL</label>
+              <input type="text" id="tileUrl" spellcheck="false" autocomplete="off" placeholder="https://host/{z}/{x}/{y}.png">
+              <div class="hint full">XYZ / TMS: {z} {x} {y}, {-y} for flipped rows, {s} for a, b, c. WMS: the service URL, e.g. https://host/geoserver/wms.</div>
+              <div id="tileWms" hidden>
+                <label for="tileLayers">Layers</label>
+                <input type="text" id="tileLayers" spellcheck="false" autocomplete="off" placeholder="workspace:layer,other">
+                <label for="tileStyles">Styles</label>
+                <input type="text" id="tileStyles" spellcheck="false" autocomplete="off" placeholder="(default)">
+                <label for="tileFormat">Format</label>
+                <select id="tileFormat"><option>image/png</option><option>image/jpeg</option><option>image/webp</option></select>
+                <label for="tileVersion">Version</label>
+                <select id="tileVersion"><option>1.3.0</option><option>1.1.1</option></select>
+                <label for="tileCrs">CRS</label>
+                <select id="tileCrs" title="What the server is asked for. UTM: each tile asks for the box enclosing it and is mapped onto the map vertex by vertex">
+                  <option value="EPSG:3857">EPSG:3857 (Web Mercator)</option>
+                  <option value="EPSG:25832">EPSG:25832 (ETRS89 / UTM 32N)</option>
+                  <option value="EPSG:25833">EPSG:25833 (ETRS89 / UTM 33N)</option>
+                  <option value="EPSG:32632">EPSG:32632 (WGS 84 / UTM 32N)</option>
+                  <option value="EPSG:32633">EPSG:32633 (WGS 84 / UTM 33N)</option>
+                </select>
+                <label for="tileTransparent">Transparent</label>
+                <input type="checkbox" id="tileTransparent">
+                <div class="hint full">256 px tiles. German state servers (DOP20 etc.) usually serve EPSG:25832.</div>
+              </div>
+              <label for="tileMaxZoom">Max zoom</label>
+              <input type="number" id="tileMaxZoom" min="0" max="22" step="1" value="19">
+              <label for="tileAttributionText">Credit</label>
+              <input type="text" id="tileAttributionText" spellcheck="false" autocomplete="off" placeholder="shown bottom right while tiles are on">
+              <label for="tileOpacity">Opacity</label>
+              <input type="range" id="tileOpacity" min="10" max="100" step="5" value="85">
+              <button type="button" id="tileApply" class="primary full">Use this source</button>
+              <div class="hint full">A server that does not allow cross-origin use (CORS) cannot be drawn by WebGL; start the viewer with --tile-proxy-host &lt;host&gt; to fetch through it.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Selection: tags and relations ------------------------------------->
+      <section class="pane" data-pane="inspect" hidden>
+        <h2 class="paneTitle">Selection</h2>
+        <div class="inspectBar">
+          <span id="inspectSummary">Nothing selected</span>
+          <button type="button" id="inspectCopy" class="iconBtn" data-tip="Copy the tags the selection shares, as key=value lines" disabled><span data-icon="copy"></span></button>
+          <button type="button" id="inspectRefresh" class="iconBtn josmOnly" data-tip="Ask JOSM again" disabled><span data-icon="refresh"></span></button>
+        </div>
+        <div id="inspectBody"></div>
+      </section>
+
+      <!-- Scene / city ------------------------------------------------------>
+      <section class="pane" data-pane="scene" hidden>
+        <h2 class="paneTitle">Sensor data</h2>
+        <div id="cityBar" class="sect" data-sect="city" hidden>
+          <button type="button" class="sectHead" data-collapse><span data-icon="chevron" class="chev"></span><span id="cityName" title="Every recorded scene of this city">city</span></button>
+          <div class="sectBody">
+            <button type="button" id="cityTracks" class="layer on" title="Click a pose arrow (or a line) on the map to open that scene at that frame."><span class="lbl">Trajectories</span><span class="sw"></span></button>
+            <div class="subHead">Point clouds around the camera</div>
+            <label class="slider" title="How far around the camera clouds are loaded; beyond 1.3x this they are dropped again">Radius <input type="range" id="cityRadius" min="50" max="1000" step="50" value="300"><span id="cityRadiusLabel" class="val">300 m</span></label>
+            <div class="btnRow">
+              <button type="button" id="cityLoad" title="Load the static clouds of every scene within the radius of the camera. Scenes whose cloud is not built yet are built now (minutes each, one at a time).">Load here</button>
+              <button type="button" id="cityAuto" title="Keep loading already-built clouds around the camera as it moves. Never starts a build.">Auto</button>
+              <button type="button" id="cityUnload" title="Drop every loaded city cloud">Unload</button>
+            </div>
+            <div id="cityStatus" class="status"></div>
+            <div class="subHead">Scenes <span id="sceneListCount" class="muted"></span></div>
+            <input type="search" id="sceneSearch" placeholder="Filter by id or split" spellcheck="false" autocomplete="off">
+            <div id="sceneList" role="list"></div>
+          </div>
+        </div>
+        <div id="sceneBar" hidden>
+          <div class="sect" data-sect="scene" data-scene-only>
+            <button type="button" class="sectHead" data-collapse><span data-icon="chevron" class="chev"></span>Scene</button>
+            <div class="sectBody">
+              <div id="sceneName" class="sceneName" title="The recorded scene the point clouds come from">scene</div>
+              <div id="sceneMeta" class="layerInfo"></div>
+            </div>
+          </div>
+          <div class="sect" data-sect="clouds" data-scene-only>
+            <button type="button" class="sectHead" data-collapse><span data-icon="chevron" class="chev"></span>Point clouds</button>
+            <div class="sectBody">
+              <button type="button" id="scenePoints" class="layer" data-scene-only title="The LiDAR point cloud of the current frame"><span class="lbl">This frame</span><kbd>P</kbd><span class="sw"></span></button>
+              <button type="button" id="sceneAggregate" class="layer" data-scene-only title="The whole scene as one cloud, with the moving traffic filtered out. Built once on the server (minutes), then cached. Showing it hides the single frame; press P to put the frame back on top of it."><span class="lbl">Whole scene</span><kbd>Shift P</kbd><span class="sw"></span></button>
+              <button type="button" id="sceneTint" class="layer sub on" data-scene-only title="While the whole scene is shown, paint the single frame one bright colour so it stands out against it"><span class="lbl">Tint this frame over it</span><kbd>U</kbd><span class="sw"></span></button>
+            </div>
+          </div>
+          <div class="sect" data-sect="style">
+            <button type="button" class="sectHead" data-collapse><span data-icon="chevron" class="chev"></span>Point style</button>
+            <div class="sectBody">
+              <label class="slider">Colour <select id="sceneMode" title="What the point colour shows">
+                <option value="intensity">intensity</option>
+                <option value="height">height</option>
+                <option value="sensor">sensor</option>
+              </select></label>
+              <div id="pointLegend" class="legend"></div>
+              <label class="slider" title="Point size in pixels">Size <input type="range" id="sceneSize" min="1" max="8" step="1" value="2"></label>
+              <label class="slider" title="Point opacity: turn it down to read the map lines and icons behind the cloud">Opacity <input type="range" id="pointAlpha" min="10" max="100" step="5" value="100"></label>
+            </div>
+          </div>
+          <div class="sect" data-sect="classes" id="classSect" hidden>
+            <button type="button" class="sectHead" data-collapse><span data-icon="chevron" class="chev"></span>Classes</button>
+            <div class="sectBody">
+              <div class="btnRow">
+                <button type="button" id="classMode" title="What ticking a class does: Hide it, or show Only the ticked classes (e.g. Only + Vehicles: nothing but vehicles). With nothing ticked, Only filters nothing.">Hide</button>
+                <button type="button" id="classPresetCars" title="The usual thing to hide: vehicles">Vehicles</button>
+                <button type="button" id="classShowAll" title="Stop hiding every class">Show all</button>
+              </div>
+              <div id="classChips"></div>
+              <div class="hint">Classes come from the front and rear camera masks; the rest of a frame is unlabelled.</div>
+            </div>
+          </div>
+          <div class="sect" data-sect="filter">
+            <button type="button" id="sceneFilterBtn" class="sectHead" title="Hide points by height over the ground or by intensity"><span data-icon="chevron" class="chev"></span><span class="lbl">Filter</span></button>
+            <div id="sceneFilters" class="sectBody" hidden>
+              <label class="slider" title="Hide points more than this far above the ground under them (0 = off). The ground is the lowest return in a 4 m cell.">Above ground <input type="range" id="aboveGround" min="0" max="30" step="0.5" value="0"><span id="aboveGroundLabel" class="val">off</span></label>
+              <label class="slider" title="Hide points dimmer than this (reflectivity)">Intensity ≥ <input type="range" id="intensityMin" min="0" max="100" step="1" value="0"><span id="intensityMinLabel" class="val">0</span></label>
+              <button type="button" id="filterReset" class="full">Reset all filters</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Debug ------------------------------------------------------------>
+      <section class="pane" data-pane="debug" hidden>
+        <h2 class="paneTitle">Debug</h2>
+        <dl class="readout">
+          <dt>seq</dt><dd id="seq">-</dd>
+          <dt>anchor</dt><dd id="anchor">-</dd>
+          <dt>look</dt><dd id="look">orbit</dd>
+          <dt>cam pos</dt><dd id="camPos">-</dd>
+          <dt>cam view</dt><dd id="camAng">-</dd>
+          <dt>orbit pivot</dt><dd id="camPivot">-</dd>
+          <dt>zoom target</dt><dd id="zoomTarget">-</dd>
+          <dt class="josmOnly">josm view</dt><dd id="josmView" class="josmOnly">idle</dd>
+          <dt id="perfRow" hidden>apply</dt><dd id="perf" hidden>-</dd>
+          <dt id="renderRow" hidden>render</dt><dd id="render" hidden>-</dd>
+        </dl>
+        <div class="subHead">Frame debug</div>
+        <pre id="frameDebug" class="readout">press F / B / Default BEV</pre>
+        <button type="button" id="defaultBevBtn" class="full" title="Sanity view: BEV at (0, 0, 100 m)">Default BEV at the origin</button>
+      </section>
+    </div>
+    <div class="tabs" role="tablist" aria-orientation="vertical">
+      <button type="button" role="tab" data-tab="layers" data-tip="Layers"><span data-icon="layers"></span></button>
+      <button type="button" role="tab" data-tab="inspect" data-tip="Selection: every tag and the relations it belongs to"><span data-icon="tag"></span><span class="badge" hidden></span></button>
+      <button type="button" role="tab" data-tab="scene" data-tip="Sensor data: scene, city, point clouds" hidden><span data-icon="car"></span><span class="badge" hidden></span></button>
+      <button type="button" role="tab" data-tab="debug" data-tip="Debug readouts" hidden><span data-icon="bug"></span></button>
+    </div>
+  </aside>
+
+  <footer id="statusbar">
+    <span id="hints"></span>
+    <span class="spacer"></span>
+    <span id="jobs" hidden><span class="spinner"></span><span id="jobsText"></span></span>
+    <span id="editStatus" hidden>edit: <span id="edit">off</span></span>
+    <span class="stat"><span id="count">0</span> features</span>
+  </footer>
+
+  <!-- Floating bits that follow the pointer or open over everything. -->
+  <div id="cityHover" hidden></div>
+  <div id="boxSel"></div>
+  <div id="tooltip" role="tooltip" hidden></div>
+  <div id="connPop" class="popover" hidden></div>
+
+  <div id="palette" class="modal" hidden>
+    <div class="modalCard paletteCard" role="dialog" aria-label="Commands">
+      <input type="text" id="paletteInput" placeholder="Type a command…" spellcheck="false" autocomplete="off">
+      <div id="paletteList" role="listbox"></div>
+    </div>
+  </div>
+  <div id="helpSheet" class="modal" hidden>
+    <div class="modalCard helpCard" role="dialog" aria-label="Keyboard and mouse">
+      <div class="modalHead"><h2>Keyboard and mouse</h2><button type="button" class="iconBtn" data-close data-tip="Close" data-key="Esc"><span data-icon="close"></span></button></div>
+      <div id="helpBody" class="helpBody"></div>
+    </div>
+  </div>
+  <div id="settingsDlg" class="modal" hidden>
+    <div class="modalCard settingsCard" role="dialog" aria-label="Settings">
+      <div class="modalHead"><h2>Settings</h2><button type="button" class="iconBtn" data-close data-tip="Close" data-key="Esc"><span data-icon="close"></span></button></div>
+      <div class="settingsBody">
+        <div class="subHead">Moving with the keys</div>
+        <label class="slider">Walk speed <input type="range" id="setWalkSpeed" min="-2" max="2" step="0.25" value="0"><span id="setWalkSpeedLabel" class="val">1×</span></label>
+        <div class="hint">WASD, arrows and Space / C. Shift is ten times this.</div>
+        <div class="subHead">Interface</div>
+        <label class="check"><input type="checkbox" id="setHints" checked> Mouse and key hints in the status bar</label>
+        <label class="check"><input type="checkbox" id="setDebug"> Debug panel (camera readouts, frame debug)</label>
+        <label class="check"><input type="checkbox" id="setTooltips" checked> Tooltips on buttons</label>
+        <div class="subHead">Selecting</div>
+        <label class="check"><input type="checkbox" id="setViewNodes"> Clicks in View mode select nodes too</label>
+        <div class="hint">Off: a click in View mode picks the line, else the lane under the cursor.<span class="josmOnly"> Edit mode always picks nodes first.</span></div>
+        <div class="btnRow"><button type="button" id="setReset">Reset the interface</button></div>
+        <div class="hint">Puts panels, sections and these settings back to their defaults. The tile source is kept.</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/vendor/three.module.js",
+      "three/addons/": "/vendor/"
+    }
+  }
+  </script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

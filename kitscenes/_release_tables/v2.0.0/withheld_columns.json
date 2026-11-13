@@ -1,0 +1,15 @@
+{
+  "comment": "Columns of scenes.csv left empty on purpose for the scenes of a split (kitscenes.splits.withheld_columns). The test-e2e splits get no recording order and no road types.",
+  "by_split": {
+    "test-e2e": [
+      "recording_order", "drive", "order_in_drive",
+      "road_motorway_share", "road_arterial_share", "road_local_share", "road_service_share",
+      "road_unmatched_share", "road_dominant", "speed_limit_kph_median"
+    ],
+    "map_change_test-e2e": [
+      "recording_order", "drive", "order_in_drive",
+      "road_motorway_share", "road_arterial_share", "road_local_share", "road_service_share",
+      "road_unmatched_share", "road_dominant", "speed_limit_kph_median"
+    ]
+  }
+}

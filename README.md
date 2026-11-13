@@ -4,282 +4,153 @@ Python API for the [KITScenes Multimodal](https://huggingface.co/datasets/KIT-MR
 
 **A high-fidelity sensor suite and the most complete HD maps of any public autonomous driving dataset.**
 
-**Links:** [Dataset website](https://kitscenes.com/multimodal/) · [Download on HuggingFace](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal) · [Python API on GitHub](https://github.com/KIT-MRT/kitscenes)
+Nine global-shutter cameras (72.5 MPix per frame), seven long-range lidars, three 4D radars and GNSS/INS, with Lanelet2 HD maps over 62 km², recorded in Karlsruhe, Frankfurt and Sindelfingen. The `kitscenes` package loads scenes, reads synchronized sensor data, queries the HD maps, builds training samples and map labels, and downloads, visualizes and exports the data. It also reads the KITScenes Aerial extension: DOP20 orthophotos and DINOv3 feature tiles aligned with every frame.
 
-> **Early release.** KITScenes Multimodal is published on HuggingFace at version **1.0.x**. The on-disk schema is in place, but files, annotations, splits, and documentation may still change. For final benchmark reporting, please wait for a **more stable** public release.
+**Links:** [Dataset website](https://kitscenes.com/multimodal/) · [KITScenes Aerial](https://kitscenes.com/aerial/) · [Download on HuggingFace](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal) · [Python API on GitHub](https://github.com/KIT-MRT/kitscenes) · [Changelog](CHANGELOG.md)
 
-<video src="https://huggingface.co/datasets/immel-f/KITScenes-Multimodal-Sample-Video/resolve/main/teaser_combined_for_huggingface.mp4" controls width="100%"></video>
+This is `kitscenes` **0.2.0**, an alpha release of the API for dataset release **v2.0.0** (one zip per sensor and scene; 2,079 scenes in the default split `v2.0.0_default_geosplit`). The dataset 1.0.x releases are read by the legacy kitscenes 0.1.0 ([dataset versions](docs/dataset_versions.md#legacy-dataset-v1x)). Before 1.0, minor releases of the API may change its interface; the [changelog](CHANGELOG.md) lists every change.
+
+![Map labels and LiDAR reprojected into ring cameras](res/sample_image.webp)
 
 *Reprojection of HD map labels into 6 of the 9 cameras, with LiDAR points reprojected into the rear cameras.*
 
-KITScenes Multimodal is a European urban autonomous driving dataset targeting Level 4 robotaxi requirements, recorded across Karlsruhe, Frankfurt, and Sindelfingen by the Institute of Measurement and Control Systems (MRT) at Karlsruhe Institute of Technology (KIT). The dataset is built around a **high-fidelity sensor suite**: nine high-resolution global-shutter cameras provide full 360° surround coverage at 72.5 MPix per frame, enabling novel view synthesis and holistic HD map perception, while seven highly dense long-range LiDARs with an effective range beyond 400 m push the limits of what current perception methods can achieve.
+## Getting started
 
-KITScenes Multimodal provides what we believe to be **the most complete HD maps of any public autonomous driving dataset**, annotated in Lanelet2 format across 62 km² with full topological connectivity between lanes, signs, and traffic lights. The maps have been validated in closed-loop autonomous driving trials using the open-source Autoware stack — meaning they are ready to drive on directly, while simultaneously enabling research to close the gap between the current state of the art and the actual requirements of L4 robotaxi deployment.
+The default path, from nothing to a loaded scene:
 
-| | | | |
-|---|---|---|---|
-| **1,000+** driving scenarios | **72.5 MPix** per frame · global shutter | **400+ m** effective LiDAR range | **62 km²** Lanelet2 HD maps |
+1. **Install** (Linux x86_64, Python 3.9–3.13):
 
-This repository provides the Python `kitscenes` package for loading scenes, accessing synchronized sensor data, querying HD maps, and running visualization / download tooling against the dataset hosted on [HuggingFace](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal).
+   ```bash
+   pip install "kitscenes[map,viz] @ git+https://github.com/KIT-MRT/kitscenes.git@v0.2.0"
+   ```
 
-**Highlights**
+2. **Get access:** accept the dataset terms on [HuggingFace](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal) (the dataset is gated), then log in with `hf auth login`.
+3. **Download the example scene** (a scene is ~20 s of driving; this one is a val scene in Frankfurt, the one the notebooks use):
 
-- **European urban focus** — recordings from Karlsruhe, Frankfurt, and Sindelfingen
-- **High-fidelity sensor suite** — 72.5 MPix global-shutter surround cameras, 7 LiDARs (~906k points/frame on average), 3 Continental ARS548 4D imaging radars, and redundant GNSS/INS
-- **Long-range sensing** — effective LiDAR range beyond 400 m with substantially higher return density than common public driving datasets
-- **Production-grade HD maps** — Lanelet2 maps with lane topology, regulatory elements, 29 road-feature classes, 120 traffic-sign classes (GTSIGN-220 taxonomy), and 3D-localized signs, traffic lights, and poles
-- **Research benchmarks** — relational HD map perception, long-range monocular depth estimation, novel view synthesis, and end-to-end / world-model research
+   ```bash
+   export KITSCENES_ROOT=/data/kitscenes                                                          # where the dataset goes; the API reads it from here
+   kitscenes download "$KITSCENES_ROOT" --scenes c34c778f-ad8c-0aa9-7e1a-c86a73f887c7 --dry-run   # what it would fetch
+   kitscenes download "$KITSCENES_ROOT" --scenes c34c778f-ad8c-0aa9-7e1a-c86a73f887c7             # 5.8 GB
+   kitscenes info "$KITSCENES_ROOT"                                                               # what is there
+   ```
 
-**License:** This repository (the `kitscenes` Python package) is licensed under [Apache-2.0](LICENSE). The [KITScenes Multimodal dataset](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal) is separate — see [License](#license) below.
+   That is the scene with all its sensors, labels and HD map, the city maps and the aerial tiles of its area. More scenes, e.g. `--splits val --max-gb 10`, and the other options: [Download](docs/download.md).
 
-**Citation:** If you use KITScenes Multimodal in research, please cite [The Road Ahead in Autonomous Driving: The KITScenes Multimodal Dataset](https://arxiv.org/abs/2606.02956) (arXiv:2606.02956). BibTeX below.
+4. **Load it:** the [Quickstart](#quickstart) below runs on this scene.
+5. **Go further:**
+   - **The whole dataset:** `kitscenes download "$KITSCENES_ROOT"` gets everything, 12.1 TB; run it with `--dry-run` first. With `--images half` the cameras are stored at half size, ~4.4 TB in all, and your code does not change: [Download](docs/download.md), [Downscaled images](docs/transcode.md).
+   - **Learn the API:** the [notebooks](#notebooks-and-examples), in order.
+   - **Train a model:** samples, batches and map labels in [Training](docs/training.md) and [Maps](docs/maps.md).
 
-## Versioning
+Scenes land under `$KITSCENES_ROOT/data/<split>/<scene_id>/`, as zips the API reads in place (nothing to extract). The HD city maps (`lanelet2_hd_maps/`) and the OpenStreetMap SD maps (`openstreetmap_sd_maps/`) come with every download, and so do the DOP20 aerial orthophotos of the selected scenes' areas (`aerial/`). The DINOv3 aerial features come with the full download; a download that selects scenes (`--splits`, `--max-gb`, ...) gets them only with `--aerial-features` (up to ~390 GB per area).
 
-### Dataset (HuggingFace)
+## Install options
 
-The [HuggingFace dataset](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal) follows [Semantic Versioning](https://semver.org) (`MAJOR.MINOR.PATCH`) for **data and on-disk layout**:
-
-| Bump | Version | Meaning |
-|------|---------|---------|
-| **Major** | `X.0.0` | New dataset schema or file format — breaks backwards compatibility |
-| **Minor** | `1.X.0` | New driving data — additional scenarios or recordings |
-| **Patch** | `1.0.X` | Updated maps, labels, metadata, or calibrations within the existing schema — fully compatible, no new scenarios |
-
-Releases are tagged on HuggingFace (e.g. `v1.0.1`) for reproducible experiments. Pin a tag or commit when downloading for benchmark work (current 1.0.1 release not recommended for benchmark reporting). See the [dataset README](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal#versioning) for release notes.
-
-### Python API (this repository)
-
-This package follows [Semantic Versioning](https://semver.org) for **code**. The current line is **`0.1.x`** (alpha pre-release): the public API is under active development and **may change without notice**. After `1.0.0`, semver applies to the API — breaking changes bump major, backward-compatible features bump minor, bug fixes bump patch.
-
-<details>
-<summary><strong>Release notes — Python API</strong></summary>
-
-#### 0.1.0
-- Alpha pre-release of the `kitscenes` package
-- Dataset loading, sensor access, HD map queries, visualization, and download tooling
-
-</details>
-
----
-
-## Setup 
-
-**Constraints:** Linux x86_64, Python 3.8–3.12, `numpy<2.0`. A pre-build beta version of Lanelet2 is provided under `res/ml_converter_wheels/` (not PyPI) and installed via the `[map]` or `[all]` extra. Map API needs it; everything else works without.
-
+Step 1 of [Getting started](#getting-started) is the install command (`uv pip install` works the same; numpy 1.22 or newer, numpy 2 included). For the notebooks, the examples and the viewer, install from a clone:
 
 ```bash
-git clone https://github.com/KIT-MRT/kitscenes.git && cd kitscenes
-pip install --upgrade pip
-pip install -e ".[all]"
-pytest test/ # test might fail depending on your installed extras
+git clone --branch v0.2.0 https://github.com/KIT-MRT/kitscenes.git && cd kitscenes
+pip install -e ".[map,viz]" jupyter      # a plain `pip install -e .` only reads and downloads
 ```
 
-for a minimal install, this includes the custom lanelet2 wheels:
-```bash
-pip install -e ".[map]"
-```
+| Task | Install | Notes |
+| ---- | ------- | ----- |
+| Read sensors, poses, calibration, labels; download; SD maps (`kitscenes.sdmap`) | `kitscenes` | numpy, scipy, pyarrow, pyproj, pillow, huggingface_hub, tqdm, pyosmium (reads the PBF SD maps) |
+| HD map API (`kitscenes.map`, `scene.map`) and map labels (`MLConverter`, map layer of the visualization) | `kitscenes[map]` | the KITScenes build of lanelet2 (below) |
+| Plots, reprojection into the cameras, videos | `kitscenes[viz]` | matplotlib, OpenCV |
+| Videos of scenes on the GPU (`kitscenes video`) | `kitscenes[video,map]` | torch, OpenCV, matplotlib; the ffmpeg binary (with NVENC for the GPU encoder) |
+| Notebooks | `kitscenes[viz]` + `jupyter` | 04 and 06 to 08 also need `[map]`, 05 `[torch]`, 06 `[aerial]` and the aerial tiles |
+| Training (torch tensors), GPU lidar maps, `motion_torch`, `decode` | `kitscenes[torch]` | torch>=1.13 (`decode`: torch>=1.10); install torch for your CUDA first, see [Training](docs/training.md#install) |
+| NVIDIA DALI readers (`kitscenes.dali`) | `nvidia-dali` | from NVIDIA's package index, not an extra |
+| `SDMap.to_networkx()` | `kitscenes[sdmap]` | networkx |
+| Aerial crops and DINOv3 feature tiles (`kitscenes.aerial`) | `kitscenes[aerial]` | OpenCV (fast crops; scipy without it); reading the release tiles needs nothing extra |
+| 3D viewer | `pip install -e . -e viewer` in a clone | separate distribution `kitscenes-viewer` |
+| Everything above that needs no choice | `kitscenes[all]` | map, viz, aerial, sdmap (not torch, not the viewer) |
+| Tests | `kitscenes[dev]` | `pytest`; tests of extras you did not install are skipped. `KITSCENES_ROOT=<root> pytest` adds the tests on real data, `KITSCENES_NOTEBOOK_ROOT=<root> pytest -m notebooks` runs the notebooks |
 
-Dependencies and wheel paths are defined in `pyproject.toml`. List vendored wheels with `ls res/ml_converter_wheels/`.
-
----
-
-## Download
-
-1. **Accept the dataset terms on HuggingFace (gated): [KITScenes-Multimodal](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal)**
-2. **Authenticate**: `hf auth login` (`huggingface-cli login` is deprecated on newer HF CLI)
-
-```bash
-export KITSCENES_ROOT=<YOUR_STORAGE_LOCATION>   # download location, inplace extraction or mounting later on.
-```
-
-Scenes land under `$KITSCENES_ROOT/data/<split>/<scene_id>/`. Total size is printed before extract; Ctrl+C to abort.
-
-### Default — mirror + extract (recommendation for large machine local disk)
-> recommended for a full dataset download
-Fetch the repo with HuggingFace tooling, then verify and extract in parallel. Tars are deleted after each scene, so disk use stays near the **final extracted size plus a small buffer** while untar runs — not ~2× the dataset.
-
-```bash
-hf download KIT-MRT/KITScenes-Multimodal --repo-type dataset --local-dir "$KITSCENES_ROOT"
-python -m kitscenes.download "$KITSCENES_ROOT" --extract-local --jobs 16
-```
-
-**Example Partial mirror (~5 GB)** — fetch a subset with `hf download`, then extract only what arrived:
-
-> c34c778f-ad8c-0aa9-7e1a-c86a73f887c7 is the default example scene UUID used in the notebooks
-```bash
-hf download KIT-MRT/KITScenes-Multimodal \
-    --repo-type dataset \
-    --local-dir "$KITSCENES_ROOT" \
-    --include "data/sequence_archives.csv" \
-    --include "data/val/c34c778f-ad8c-0aa9-7e1a-c86a73f887c7.tar" 
-    --max-workers 32
-
-python -m kitscenes.download "$KITSCENES_ROOT" --extract-local --split val --jobs 32
-```
-
-Adjust the `--include` glob to control how much you pull.
-
-### Alternative — built-in downloader (few samples / tight disk)
-> not! recommended for a full dataset download
-
-Downloads one tar at a time, extracts, deletes the tar. Slower, but disk grows incrementally — useful for a quick test or when you cannot mirror all archives at once. Use `--split` or `--max-gb` to cap what you fetch.
-
-```bash
-# sample scene (~5 GB)
-python -m kitscenes.download "$KITSCENES_ROOT" \
-    --scenes c34c778f-ad8c-0aa9-7e1a-c86a73f887c7 
-
-# e.g. first 50 GB of val
-python -m kitscenes.download "$KITSCENES_ROOT" --split val --max-gb 50
-```
-
-More flags: `python -m kitscenes.download --help`
-
-### Direct mounting of .tar scene files with ratarmount 
-> readonly. simple solution for network-storage / HPC-storage with limited inodes and network congesting filesystem metadata when using many small files
-
-see: https://github.com/mxmlnkn/ratarmount#benchmarks
-
-Keep mirrored `.tar` files on disk and skip full extract — useful after `hf download` when you retain archives (do not run `--extract-local`) and want to get started quickly.
-
-
-```bash
-hf download KIT-MRT/KITScenes-Multimodal --repo-type dataset --local-dir "$KITSCENES_ROOT" # download dataset first
-pip install -e ".[mount]" # installs ratarmount
-source scripts/mount_kitscenes_tars.sh "$KITSCENES_ROOT" # mounts tars for you and 
-# exported KITSCENES_ROOT=/tmp/$USER/ratarmount/kitscenes
-python -c "from kitscenes import KITScenesDataset; print(KITScenesDataset(split='val'))" # test it
-python -c "from kitscenes import KITScenesDataset; print(KITScenesDataset(split='train'))" # test it
-python -c "from kitscenes import KITScenesDataset; print(KITScenesDataset())" # test it
-# Unmount when done:
-# ratarmount -u /tmp/$USER/ratarmount/kitscenes/data/*
-```
-
-Each split is union-mounted from `data/<split>/*.tar` to `/tmp/$USER/ratarmount/kitscenes/data/<split>/`. Scene folders appear as `<scene_uuid>/` (tar basename without `.tar`). First mount per split builds ratarmount index files (beside the tars or in `~/.cache/ratarmount`) and can take a while on large splits. Unlike the SquashFS workflow below, no `pack_sqfs` / `mksquashfs` step is needed, but all per-scene tars remain on disk.
-
-### SquashFS image 
-
-> readonly. more complex than tar mounts but potentially faster, no full extract but inplace sqashfs creation
-
-Build one read-only image **per split** with [ratarmount](https://github.com/mxmlnkn/ratarmount) + `mksquashfs` (tars removed after append). Each image contains `<scene_id>/` at its root. Uses **lz4** by default (`--comp none` to disable).
-
-```bash
-python -m kitscenes.pack_sqfs --processors 16
-# -> $(dirname $KITSCENES_ROOT)/kitscenes_sqfs/train.sqfs, val.sqfs, ...
-```
-
-Mount to an ephemeral FUSE tree and **source** the script (sets `$KITSCENES_ROOT`):
-
-```bash
-source scripts/mount_kitscenes_sqfs.sh $KITSCENES_ROOT/../kitscenes_sqfs
-# this exported KITSCENES_ROOT=/tmp/$USER/sqfs_mnt/kitscenes
-python -c "from kitscenes import KITScenesDataset; print(KITScenesDataset(split='val'))"
-
-# Unmount all sqfs mounts when done like this :
-# fusermount -u /tmp/$USER/sqfs_mnt/kitscenes/data/train
-```
-
-Requires `ratarmount` + `mksquashfs` to build; `squashfuse` to mount (see `scripts/mount_kitscenes_sqfs.sh`). More flags: `python -m kitscenes.pack_sqfs --help`
-
----
+**The map extra and the ML converter.** `kitscenes[map]` installs lanelet2 `1.2.3+kitscenes4` (`kitscenes.map.LANELET2_BUILD`), the [KITScenes build](https://github.com/KITScenes/Lanelet2/releases/tag/1.2.3-kitscenes4) with `lanelet2.ml_converter`. Its wheels exist **only for Linux x86_64 and Python 3.9–3.13**. Elsewhere the PyPI lanelet2 is installed: the map API works, but the map labels (`MLConverter`) raise `MissingDependencyError`. `kitscenes.map.has_ml_converter()` tells which one you have. Details: [Maps](docs/maps.md#lanelet2-the-kitscenes-build).
 
 ## Quickstart
 
 ```python
-from kitscenes import KITScenesDataset
+import kitscenes
 
-ds = KITScenesDataset(split="train")  # uses $KITSCENES_ROOT
-print(ds)
-# iterate on a scene level
-scene = ds[0]
-print(scene)
+ds = kitscenes.open(splits="val")                    # root from $KITSCENES_ROOT
+scene = ds[0]                                        # or ds["<scene uuid>"]
+frame = scene[50]                                    # one 10 Hz time step
+image = frame.image("camera_ring_front", reduce=4)   # (568, 876, 3) uint8 RGB
+cloud = frame.lidar("lidar_top")                     # the measured points, deskewed
+xyz = cloud.xyz                                      # (N, 3) float32, base frame (x forward, y left, z up)
+pose = frame.pose                                    # EgoPose: xyz, quat, T_world_base
+future = frame.future(horizon_s=3.0)                 # the ego trajectory ahead, in this frame's base frame
+lanes = scene.map.lanes()                            # HD map lanes (not in the test splits)
+
+spec = kitscenes.SampleSpec(cameras=("camera_ring_front",), reduce=4, lidars=("lidar_top",), future_s=3.0)
+samples = kitscenes.SampleDataset(ds, spec)          # a torch Dataset; DataLoader(..., collate_fn=kitscenes.collate)
 ```
 
+Anything that may be missing (a sensor you did not download, maps and labels in the test splits) raises a `kitscenes.Unavailable` that says why, or returns None with `missing="none"`.
 
+## Which doc do I need
 
+| I want to ... | Read |
+|---|---|
+| know the frames, units, timestamps, base vs road frame, missing-data errors | [Conventions](docs/conventions.md) |
+| read cameras, lidars, radars, labels, calibration; ego motion and the IMU, image corrections; fuse and project | [Sensors](docs/sensors.md) |
+| query the HD map, make map labels (MapTR preset) | [Maps](docs/maps.md) |
+| train and evaluate map-construction models: info files, image loaders, evaluation | [The map benchmark pipeline](docs/maps.md#the-map-benchmark-pipeline) |
+| use the OpenStreetMap SD maps: roads, routes, junctions, rule-based driving commands | [SD maps and navigation](docs/sdmap.md) |
+| train: samples, batches, clips, GPU JPEG decoding | [Training](docs/training.md) |
+| predict ego trajectories (test-e2e): submission format, metrics, ego status, driving command | [End-to-end driving](docs/e2e.md) |
+| use GNSS/INS and IMU messages | [GNSS/INS](docs/gnss_ins.md) |
+| build voxel maps over many frames | [Lidar maps](docs/lidar_maps.md) |
+| use KITScenes Aerial: DOP20 orthophoto crops and DINOv3 feature tiles under every frame | [Aerial imagery](docs/aerial.md), [DINOv3 features](docs/aerial_features.md) |
+| plot, reproject into the cameras, render videos of scenes on the GPU, use the 3D viewer | [Visualization](docs/visualization.md) |
+| pick splits and scenes | [Splits](docs/splits.md) |
+| use a split definition other than the default (`scene_id → split`) | [Split definitions](docs/splits.md#split-definitions) |
+| filter scenes by recording metadata (week, time of day, light, weather, road types, ...) | [Scene table](docs/scene_table.md) |
+| download parts, pin a version, extract | [Download](docs/download.md) |
+| keep the cameras at 1/2, 1/4 or 1/8 size to save disk (`--images half`, `kitscenes transcode`), repack scenes into zips | [Downscaled images](docs/transcode.md) |
+| know the dataset releases and which API reads them | [Dataset versions](docs/dataset_versions.md) |
+| see what changed in the API | [Changelog](CHANGELOG.md) |
 
-<details>
-<summary><strong>HD map Vizualization CLI (ML converter — traffic elements, styled lane markings):</strong></summary>
-example CLI call (read-only inputs from dataset root; writes go to external output):
+## Notebooks and examples
 
-```bash
-SCENE_UUID=c34c778f-ad8c-0aa9-7e1a-c86a73f887c7
-SPLIT=val
-export KITSCENES_VIZ_OUTPUT="./outputs/visualization/$SPLIT/$SCENE_UUID"
-SCENE="$KITSCENES_ROOT/data/$SPLIT/$SCENE_UUID"
+The notebooks in `notebooks/` are a learning path. They run on the example scene of [Getting started](#getting-started) (`SCENE_ID` in the first cell; any scene works) under `$KITSCENES_ROOT` (or set `DATASET_ROOT`). Notebook 01 says what to download. 01 to 07 follow that one scene; 08 looks at all scenes and says what it needs:
 
-python -m kitscenes.visualization project \
-  --base-dir "$SCENE" \
-  --map-path "$SCENE/maps/map.osm"
+| Notebook | What it shows |
+| -------- | ------------- |
+| `01_quickstart.ipynb` | Open the dataset, a scene, a frame; a camera image, a lidar sweep, the ego pose and the drive; missing data |
+| `02_sensors_and_calibration.ipynb` | The rig (cameras, lidars, radars), timing, transforms between frames, all lidars fused, lidar and radar in the cameras, lidar deskewing, several frames in one cloud, radar ego-motion compensation, GNSS/IMU |
+| `03_labels.ipynb` | Ground segmentation, instance masks, camera labels on lidar points, availability and what the test splits withhold |
+| `04_maps.ipynb` | `SceneMap` queries (lanes, lines, crosswalks, lane matching, routing), map points in the camera, ML-converter map labels top-down and in the cameras, the future drive on the map, the city maps |
+| `05_training.ipynb` | `SampleSpec`, `SampleDataset` and `collate` with a `DataLoader`, ego past and future, clips, map labels in samples, speed (workers, `scene_cache`) |
+| `06_aerial_imagery.ipynb` | Aerial crops per frame from the release tiles (on the fly, a tile store, a crop cache), map labels and lidar over them, the DINOv3 features as an image |
+| `07_sd_maps_and_navigation.ipynb` | The OpenStreetMap SD map of a scene, the roads around a frame, the driven route with its maneuvers, the route on the HD map, driving commands (experimental) |
+| `08_dataset_overview.ipynb` | All scenes: the recording conditions from the scene table, the splits and the night drives on the city maps, how much map lies around the vehicle |
 
-python -m kitscenes.visualization video \
-  --visdir "$KITSCENES_VIZ_OUTPUT"
-```
+Scripts in `examples/` (each says in its docstring what it shows and how to run it):
 
-**CLI help**:
-
-```bash
-python -m kitscenes.visualization --help          # list subcommands: project, video
-python -m kitscenes.visualization project --help  # map-on-camera + top-down options
-python -m kitscenes.visualization video --help    # MP4 assembly options
-```
-
-| Command | Notable options (see `--help` for full list) |
-|---------|-----------------------------------------------|
-| `project` | `--output-dir` or `$KITSCENES_VIZ_OUTPUT` (required; must not be under `$KITSCENES_ROOT`); UTM origin from `maps/origin.json` unless `--lat-origin` / `--lon-origin`; `--frame-step` (default 5); `--num-processes` (default 16); `--skip-top-down`, `--front-only`, `--grid-only`, `--no-generate-grid` |
-| `video` | `--visdir` (grid + camera output from `project`); `--output-path` or `$KITSCENES_VIZ_OUTPUT` / `map_projection.mp4`; `--fps` (default 2) |
-
-</details>
-
-<details>
-<summary><strong>Splits</strong></summary>
-
-`$KITSCENES_ROOT` is always the dataset root. Pass `split=` to pick one split; omit it to load all scenes you have on disk (across splits).
-
-```python
-ds_train = KITScenesDataset(split="train")
-ds_val = KITScenesDataset(split="val")
-ds_all = KITScenesDataset()              # all downloaded scenes under $KITSCENES_ROOT
-```
-
-</details>
-
----
-
-## Explore further
-
-The `notebooks/` directory contains executed examples (set `DATASET_ROOT` or `$KITSCENES_ROOT` in each notebook):
-
-
-| Notebook                              | Topic                                                                 |
-| ------------------------------------- | --------------------------------------------------------------------- |
-| `01_quickstart.ipynb`                 | Dataset loading, scenes, timestamps, ego poses, `FrameDataset`        |
-| `02_sensor_data.ipynb`                | `SensorDataLoader`, LiDAR/radar deskewing, sensor visualizations      |
-| `03_map_labels.ipynb`                 | ML-converter HD map labels, top-down BEV, map-on-camera projection    |
-| `04_calibration_and_multimodal.ipynb` | Camera/LiDAR calibration, multi-LiDAR fusion, LiDAR/radar overlays    |
-
+| Script | What it does |
+| ------ | ------------ |
+| `example_usage.py` | A tour of the whole API in one script, printing what each call returns |
+| `train_loop.py` | A minimal PyTorch training loop: front camera to the next 3 s of the ego trajectory, with a masked loss |
+| `export_scene.py` | A scene as PCD/PLY point clouds, JPEG images, TUM poses and calibration JSON, for other tools |
+| `render_reprojection.py` | The ring cameras with map labels, lidar and radar drawn in, as JPEGs per frame and an MP4 |
+| `download_subset.py` | Scenes chosen from the scene table (split, city, lidar) and the `kitscenes download` command for them |
+| `download_aerial_tiles.py` | Orthophoto tiles around chosen scenes from a WMS service (another flight date, another source) into a tile folder of your own, read like the release tiles |
 
 ## License
 
-### Software (this repository)
+The `kitscenes` source code is licensed under the **Apache License 2.0** ([LICENSE](LICENSE)).
 
-The `kitscenes` source code is licensed under the **Apache License 2.0**. See [LICENSE](LICENSE).
+The KITScenes Multimodal **dataset** is **not** covered by Apache-2.0. Access is gated on HuggingFace. By requesting access you agree to use the data under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) together with the additional KITScenes terms on the [dataset page](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal). Where those dataset terms conflict with CC BY-NC 4.0, the dataset terms prevail. Using this Python API does **not** grant rights to use the dataset beyond those terms.
 
-### Dataset (HuggingFace)
-
-The KITScenes Multimodal **dataset** is **not** covered by Apache-2.0. Access is gated on HuggingFace. By requesting access you agree to use the data under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) together with the additional KITScenes terms on the [dataset page](https://huggingface.co/datasets/KIT-MRT/KITScenes-Multimodal). Where those dataset terms conflict with CC BY-NC 4.0, the dataset terms prevail.
-
-Using this Python API does **not** grant rights to use the dataset beyond those terms.
-
----
+Three parts of the release have their own terms: the DOP20 orthophotos in `aerial/` (open data of the state surveying agencies of Baden-Württemberg and Hesse, `aerial/ATTRIBUTION.md`), the DINOv3 feature tiles in `aerial/features/` (their `TERMS.md` and Meta's DINOv3 licence; the dataset terms you accept on HuggingFace cover them too: the source imagery must not be reconstructed from them) and the OpenStreetMap SD maps in `openstreetmap_sd_maps/` (© OpenStreetMap contributors, [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/)).
 
 ## Citation
 
-If you use KITScenes Multimodal in research, please cite:
-
-**The Road Ahead in Autonomous Driving: The KITScenes Multimodal Dataset**  
-[arXiv:2606.02956](https://arxiv.org/abs/2606.02956)
+If you use KITScenes Multimodal in research, please cite [The Road Ahead in Autonomous Driving: The KITScenes Multimodal Dataset](https://arxiv.org/abs/2606.02956) (arXiv:2606.02956). If you use the aerial imagery or the DINOv3 aerial features, please also cite [A Unified Benchmark for Aerial-Enhanced Autonomous Driving: The KITScenes Aerial Dataset](https://arxiv.org/abs/2610.40455) (arXiv:2610.40455).
 
 ```bibtex
 @misc{schwarzkopf2026kitscenes,
@@ -293,3 +164,16 @@ If you use KITScenes Multimodal in research, please cite:
 }
 ```
 
+```bibtex
+@misc{lengerer2026kitscenesaerial,
+  title     = {A Unified Benchmark for Aerial-Enhanced Autonomous Driving: The KITScenes Aerial Dataset},
+  author    = {Daniel Lengerer and Richard Schwarzkopf and Jonas Merkert and Fabian Immel and
+               Rupert Polley and Frank Bieder and Jan-Hendrik Pauls and J. Marius Zöllner and
+               Klaus Bogenberger and Christoph Stiller and Carsten Markgraf},
+  year      = {2026},
+  eprint    = {2610.40455},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url       = {https://arxiv.org/abs/2610.40455}
+}
+```
