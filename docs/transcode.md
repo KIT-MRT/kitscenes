@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
 ## Training code
 
-Training pipelines that resize by a factor of the *loaded* image and apply the same factor to full-size projection matrices from their info files (MapTR-style `RandomScaleImageMultiViewImage(scales=[0.3])`) would be silently misaligned on downscaled images. [kitscenes-mmdet3d](https://github.com/KIT-MRT/kitscenes-mmdet3d) 0.2.0 handles this: the loader gives every view its release size (`image_size="release"`, the default), so `img_shape` and the projection matrices are those of the release. The deferred decoders resize from the stored image straight to the pipeline's size; the CPU decoder upsamples to the release size. Read through the API (`frame.image`, `SampleSpec`, `scene.rig`) and nothing needs to change.
+Training pipelines that resize by a factor of the *loaded* image and apply the same factor to full-size projection matrices from their info files (MapTR-style `RandomScaleImageMultiViewImage(scales=[0.3])`) would be silently misaligned on downscaled images. [kitscenes-mmdet3d](https://github.com/KITScenes/kitscenes-mmdet3d) 0.2.0 handles this: the loader gives every view its release size (`image_size="release"`, the default), so `img_shape` and the projection matrices are those of the release. The deferred decoders resize from the stored image straight to the pipeline's size; the CPU decoder upsamples to the release size. Read through the API (`frame.image`, `SampleSpec`, `scene.rig`) and nothing needs to change.
 
 Info files (pkl) should hold the release geometry, so that one file serves the release and every downscaled copy: a converter that runs on a downscaled root takes the cameras from `scene.files.rig_original`, not `scene.rig`.
 

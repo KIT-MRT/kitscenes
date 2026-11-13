@@ -34,9 +34,9 @@ flowchart LR
     gt --> evaluation
 ```
 
-- [kitscenes-map-converter](https://github.com/KIT-MRT/kitscenes-map-converter) writes the info files of the projects (a **profile** per project: `benchmark`, `mapqr`, `sdtagnet`, `afmn`) and the eval GT, with the labels of this page (a **label recipe**: `default` or `paper-v2.0.0`). Info files name images by scene, frame and camera, not by path.
-- [kitscenes-mmdet3d](https://github.com/KIT-MRT/kitscenes-mmdet3d) is the image loader of the mmdet3d projects: it reads the camera JPEGs through this API, from any copy of the release (zips, extracted, downscaled).
-- [kitscenes-map-eval](https://github.com/KIT-MRT/kitscenes-map-eval) scores predictions against the eval GT (MapTR's Chamfer AP; C-mAP for tracking). The test GT is not published.
+- [kitscenes-map-converter](https://github.com/KITScenes/kitscenes-map-converter) writes the info files of the projects (a **profile** per project: `benchmark`, `mapqr`, `sdtagnet`, `afmn`) and the eval GT, with the labels of this page (a **label recipe**: `default` or `paper-v2.0.0`). Info files name images by scene, frame and camera, not by path.
+- [kitscenes-mmdet3d](https://github.com/KITScenes/kitscenes-mmdet3d) is the image loader of the mmdet3d projects: it reads the camera JPEGs through this API, from any copy of the release (zips, extracted, downscaled).
+- [kitscenes-map-eval](https://github.com/KITScenes/kitscenes-map-eval) scores predictions against the eval GT (MapTR's Chamfer AP; C-mAP for tracking). The test GT is not published.
 - Everything is in the road frame, on the scored frames of the default split `v2.0.0_default_geosplit` (every 4th frame, 2.5 Hz).
 
 ## lanelet2: the KITScenes build
